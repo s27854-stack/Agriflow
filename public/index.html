@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Sprinkler | Soil Moisture Monitor</title>
+  <meta name="description" content="Real-time ESP32 soil moisture and smart valve control dashboard"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<div class="bg-canvas">
+  <div class="bg-blob b1"></div>
+  <div class="bg-blob b2"></div>
+  <div class="bg-blob b3"></div>
+  <div class="bg-particles" id="bg-particles"></div>
+</div>
+
+<header>
+  <div class="hdr">
+    <div class="logo">
+      <div class="logo-ring"><span>🌱</span></div>
+      <div>
+        <div class="logo-title">Smart<b>Sprinkler</b></div>
+        <div class="logo-sub">ESP32 Smart Watering System</div>
+      </div>
+    </div>
+    <div class="hdr-center" id="soil-banner">
+      <span id="soil-icon">⏳</span>
+      <span id="soil-label">Waiting for sensor…</span>
+    </div>
+    <div class="hdr-right">
+      <div class="status-chip" id="status-chip">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-txt">Connecting</span>
+      </div>
+      <div class="clock" id="clock"></div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- Row 1 -->
+  <section class="row row-top">
+
+    <!-- Moisture Ring -->
+    <div class="card card-moisture" id="card-moisture">
+      <div class="card-tag">🌱 Soil Moisture</div>
+      <div class="ring-wrap">
+        <svg class="ring-svg" viewBox="0 0 200 200">
+          <defs>
+            <linearGradient id="hGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#2ed573"/>
+              <stop offset="100%" stop-color="#00d2ff"/>
+            </linearGradient>
+          </defs>
+          <circle cx="100" cy="100" r="80" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="14" stroke-dasharray="502" stroke-dashoffset="0" stroke-linecap="round" transform="rotate(-225 100 100)"/>
+          <circle id="ring-arc" cx="100" cy="100" r="80" fill="none" stroke="url(#hGrad)" stroke-width="14" stroke-dasharray="502" stroke-dashoffset="502" stroke-linecap="round" transform="rotate(-225 100 100)" style="transition: stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1)"/>
+        </svg>
+        <div class="ring-center">
+          <div class="ring-val" id="moist-val">--</div>
+          <div class="ring-unit">%</div>
+          <div class="ring-label">Soil Moisture</div>
+        </div>
+      </div>
+      <div class="moisture-bar-wrap">
+        <div class="moisture-bar">
+          <div class="moisture-fill" id="moist-fill"></div>
+          <div class="moisture-thumb" id="moist-thumb"></div>
+        </div>
+        <div class="moisture-scale">
+          <span>0</span><span>25</span><span>50</span><span>75</span><span>100%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Valve Status -->
+    <div class="card card-valve" id="card-valve">
+      <div class="card-tag">🚿 Valve Control</div>
+      <div class="valve-display">
+        <div class="valve-icon-wrap" id="valve-icon-wrap">
+          <div class="valve-circle" id="valve-circle">
+            <span id="valve-emoji">🚫</span>
+          </div>
+          <div class="valve-ripple" id="valve-ripple"></div>
+        </div>
+        <div class="valve-status" id="valve-status">CLOSE</div>
+        <div class="valve-sub" id="valve-sub">Waiting for data...</div>
+      </div>
+      <div class="raw-display">
+        <div class="raw-label">Analog Raw Value</div>
+        <div class="raw-val" id="raw-val">--</div>
+        <div class="raw-range">Range: 0 – 4095 (12-bit ADC)</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-col">
+      <div class="card mini-card" id="mini-device">
+        <div class="mini-icon">📡</div>
+        <div class="mini-body">
+          <div class="mini-label">Device</div>
+          <div class="mini-val" id="mini-device-val">—</div>
+        </div>
+      </div>
+      <div class="card mini-card" id="mini-count">
+        <div class="mini-icon">📊</div>
+        <div class="mini-body">
+          <div class="mini-label">Total Readings</div>
+          <div class="mini-val" id="mini-count-val">0</div>
+        </div>
+      </div>
+      <div class="card mini-card" id="mini-avg">
+        <div class="mini-icon">📈</div>
+        <div class="mini-body">
+          <div class="mini-label">Avg Moisture (10)</div>
+          <div class="mini-val" id="mini-avg-val">—</div>
+        </div>
+      </div>
+      <div class="card mini-card" id="mini-last">
+        <div class="mini-icon">🕐</div>
+        <div class="mini-body">
+          <div class="mini-label">Last Update</div>
+          <div class="mini-val" id="mini-last-val">—</div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+
+
+  <!-- Config Card -->
+  <section class="card config-card row-config" id="card-config">
+    <div class="card-tag">
+      ⚙️ Watering Config
+      <span class="config-live" id="config-live">LIVE</span>
+    </div>
+    <div class="config-grid config-grid-2" id="config-grid">
+      <div class="config-item">
+        <div class="config-icon open">💧</div>
+        <div class="config-body">
+          <div class="config-label">Open Threshold</div>
+          <div class="config-slider-row">
+            <input type="range" class="cfg-slider slider-open" id="cfg-threshold" min="5" max="95" value="40">
+            <div class="cfg-val-display">
+              <span class="cfg-num" id="cfg-threshold-val">40</span>
+              <span class="cfg-unit">%</span>
+            </div>
+          </div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:6px">Soil below this % → Valve opens</div>
+        </div>
+      </div>
+      <div class="config-item">
+        <div class="config-icon time">⏱️</div>
+        <div class="config-body">
+          <div class="config-label">Watering Duration</div>
+          <div class="config-slider-row">
+            <input type="range" class="cfg-slider slider-time" id="cfg-duration" min="1" max="60" value="3">
+            <div class="cfg-val-display">
+              <span class="cfg-num" id="cfg-duration-val">3</span>
+              <span class="cfg-unit">min</span>
+            </div>
+          </div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:6px">Valve stays open for this long</div>
+        </div>
+      </div>
+    </div>
+    <div class="config-footer">
+      <div class="config-save-status" id="config-save-status">
+        <span class="save-dot"></span>
+        <span id="config-save-text">Synced</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Chart -->
+  <section class="card chart-card">
+    <div class="chart-header">
+      <div class="card-tag" style="margin-bottom:0">📉 History</div>
+      <div class="chart-toggles">
+        <button class="tog active" id="tog-moist" data-ds="0">Moisture %</button>
+        <button class="tog" id="tog-raw" data-ds="1">Raw ADC</button>
+      </div>
+      <div class="range-btns">
+        <button class="rbtn active" data-n="20">20</button>
+        <button class="rbtn" data-n="50">50</button>
+        <button class="rbtn" data-n="100">100</button>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+  </section>
+
+  <!-- Scale + Table -->
+  <section class="row row-bottom">
+    <div class="card scale-card">
+      <div class="card-tag">🎯 Soil Moisture Scale</div>
+      <div class="scale-list">
+        <div class="scale-item" style="--c:#ff4757"><div class="scale-bar"></div><div class="scale-info"><strong>🏜️ Very Dry</strong><span>0 – 20%</span></div></div>
+        <div class="scale-item" style="--c:#ff6b35"><div class="scale-bar"></div><div class="scale-info"><strong>☀️ Dry</strong><span>20 – 40%</span></div></div>
+        <div class="scale-item" style="--c:#2ed573"><div class="scale-bar"></div><div class="scale-info"><strong>✅ Good</strong><span>40 – 60%</span></div></div>
+        <div class="scale-item" style="--c:#00d2ff"><div class="scale-bar"></div><div class="scale-info"><strong>💧 Moist</strong><span>60 – 80%</span></div></div>
+        <div class="scale-item" style="--c:#7b2ff7"><div class="scale-bar"></div><div class="scale-info"><strong>🌊 Saturated</strong><span>80 – 100%</span></div></div>
+      </div>
+    </div>
+
+    <div class="card table-card">
+      <div class="card-tag">📋 Recent Readings</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Device</th><th>Moisture</th><th>Raw</th><th>Valve</th><th>Soil Level</th><th>Time</th></tr></thead>
+          <tbody id="tbl-body"><tr class="empty"><td colspan="7">Waiting for ESP32 data…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="guide-btn" id="guide-btn" title="Setup Guide">?</div>
+<div class="guide-modal" id="guide-modal">
+  <div class="guide-box">
+    <button class="guide-close" id="guide-close">✕</button>
+    <h2>🔧 ESP32 Setup Guide</h2>
+    <ol>
+      <li>Install <b>ESP32Servo</b> library<br/><code>Tools → Manage Libraries → "ESP32Servo"</code></li>
+      <li>Moisture Sensor → GPIO <b>34</b>, Servo → GPIO <b>18</b></li>
+      <li>Set server URL:<br/><code>serverUrl = "http://<span id="guide-ip">your-pc-ip</span>:3000/api/sensor"</code></li>
+      <li>Threshold & duration adjustable from dashboard!</li>
+      <li>Flash to ESP32, Serial Monitor at <b>115200</b></li>
+    </ol>
+    <div class="guide-endpoint">POST: <code>http://<span id="guide-ep">your-pc-ip</span>:3000/api/sensor</code></div>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <span id="toast-icon">⚠️</span>
+  <div><div class="toast-title" id="toast-title">Alert</div><div class="toast-msg" id="toast-msg"></div></div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
